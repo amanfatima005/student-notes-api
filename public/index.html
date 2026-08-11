@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Student Notes Manager</title>
+<link rel="stylesheet" href="/app/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>📚 Student Notes Manager</h1>
+      <p class="subtitle">Powered by the Student Notes REST API (Express)</p>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="add">Add Note</button>
+      <button class="tab-btn" data-tab="view">View Notes</button>
+      <button class="tab-btn" data-tab="search">Search</button>
+      <button class="tab-btn" data-tab="update">Update</button>
+      <button class="tab-btn" data-tab="delete">Delete</button>
+      <button class="tab-btn" data-tab="stats">Statistics</button>
+    </nav>
+
+    <main>
+      <!-- ADD NOTE -->
+      <section id="add" class="tab-panel active">
+        <h2>Add a New Note</h2>
+        <form id="addForm">
+          <label>Title <input type="text" id="addTitle" placeholder="React Hooks" required /></label>
+          <label>Subject <input type="text" id="addSubject" placeholder="Web Development" required /></label>
+          <label>Description <textarea id="addDescription" placeholder="Learned useState and useEffect." required></textarea></label>
+          <label>Tags (comma separated) <input type="text" id="addTags" placeholder="react,hooks" /></label>
+          <button type="submit">Save Note</button>
+        </form>
+        <div id="addMessage" class="message"></div>
+      </section>
+
+      <!-- VIEW NOTES -->
+      <section id="view" class="tab-panel">
+        <h2>All Notes</h2>
+        <button id="refreshViewBtn">🔄 Refresh</button>
+        <div id="viewList" class="note-list"></div>
+      </section>
+
+      <!-- SEARCH -->
+      <section id="search" class="tab-panel">
+        <h2>Search Notes</h2>
+        <form id="searchForm">
+          <label>Search in
+            <select id="searchField">
+              <option value="title">Title</option>
+              <option value="subject">Subject</option>
+              <option value="tag">Tag</option>
+            </select>
+          </label>
+          <label>Search term
+            <input type="text" id="searchInput" placeholder="react" />
+          </label>
+          <button type="submit">Search</button>
+        </form>
+        <div id="searchList" class="note-list"></div>
+      </section>
+
+      <!-- UPDATE -->
+      <section id="update" class="tab-panel">
+        <h2>Update a Note</h2>
+        <p class="hint">Find the note's ID in the "View Notes" tab, then load it here.</p>
+        <form id="findForm">
+          <label>Note ID
+            <input type="text" id="updateFindId" placeholder="e.g. 664f1c2e8a1b2c3d4e5f6789" required />
+          </label>
+          <button type="submit">Load Note</button>
+        </form>
+        <form id="updateForm" class="hidden">
+          <label>Title <input type="text" id="updateTitle" /></label>
+          <label>Subject <input type="text" id="updateSubject" /></label>
+          <label>Description <textarea id="updateDescription"></textarea></label>
+          <label>Tags (comma separated) <input type="text" id="updateTags" /></label>
+          <button type="submit">Save Changes</button>
+        </form>
+        <div id="updateMessage" class="message"></div>
+      </section>
+
+      <!-- DELETE -->
+      <section id="delete" class="tab-panel">
+        <h2>Delete a Note</h2>
+        <p class="hint">Find the note's ID in the "View Notes" tab.</p>
+        <form id="deleteForm">
+          <label>Note ID
+            <input type="text" id="deleteId" placeholder="e.g. 664f1c2e8a1b2c3d4e5f6789" required />
+          </label>
+          <button type="submit" class="danger">Delete</button>
+        </form>
+        <div id="deleteMessage" class="message"></div>
+      </section>
+
+      <!-- STATISTICS -->
+      <section id="stats" class="tab-panel">
+        <h2>Statistics</h2>
+        <button id="refreshStatsBtn">🔄 Refresh</button>
+        <div id="statsBox" class="stats-box"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Confirm dialog for delete -->
+  <div id="confirmOverlay" class="overlay hidden">
+    <div class="confirm-box">
+      <p id="confirmText">Are you sure?</p>
+      <div class="confirm-actions">
+        <button id="confirmYes" class="danger">Yes, delete</button>
+        <button id="confirmNo">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app/script.js"></script>
+</body>
+</html>

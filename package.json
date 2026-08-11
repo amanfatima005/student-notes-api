@@ -1,0 +1,25 @@
+{
+  "name": "student-notes-api",
+  "version": "1.0.0",
+  "description": "A REST API for managing student study notes, built with Express.js and Node.js core modules.",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "nodejs",
+    "express",
+    "rest-api",
+    "notes",
+    "backend"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^4.19.2",
+    "mongoose": "^9.9.2"
+  }
+}
