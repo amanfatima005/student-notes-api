@@ -1,0 +1,13 @@
+[
+  {
+    "id": 2,
+    "title": "Node JS Basics",
+    "subject": "Backend",
+    "description": "Learning modules",
+    "tags": [
+      "node",
+      "backend"
+    ],
+    "createdAt": "2026-08-05T16:54:22.011Z"
+  }
+]
