@@ -3,12 +3,20 @@
 // IMPORTANT: /search and /stats must be declared BEFORE /:id.
 // Otherwise Express would treat "search" or "stats" as an :id value
 // and route them to getNoteById instead.
+//
+// Week 5: every route here requires a valid JWT. authMiddleware runs first
+// for every request that reaches this router, so req.user.id is always
+// available in the controller and in validateNote.
 
 const express = require('express');
 const router = express.Router();
 
 const notesController = require('../controllers/notesController');
 const validateNote = require('../middleware/validateNote');
+const authMiddleware = require('../middleware/authMiddleware');
+
+// Protect everything below this line
+router.use(authMiddleware);
 
 // Specific routes first
 router.get('/search', notesController.searchNotes);
