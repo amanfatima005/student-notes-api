@@ -4,6 +4,10 @@
 // This runs BEFORE Mongoose ever sees the data -- it's the first of the two
 // validation layers described in the README (Express middleware, then
 // Mongoose schema validation as a safety net).
+//
+// Runs AFTER authMiddleware (see notesRoutes.js), so req.user.id is always
+// available here -- the duplicate-title check is scoped per user, since
+// two different students are allowed to both have a note called "React Hooks".
 
 const Note = require('../models/Note');
 const { escapeRegex } = require('../utils/helpers');
@@ -35,7 +39,7 @@ async function validateNote(req, res, next) {
     });
   }
 
-  // 5. Duplicate title check (case-insensitive), performed as a real query.
+  // 5. Duplicate title check (case-insensitive, scoped to THIS user only).
   // On update (PUT /api/notes/:id), the note being edited is excluded so
   // saving a note without changing its title still works.
   try {
@@ -43,6 +47,7 @@ async function validateNote(req, res, next) {
 
     const duplicate = await Note.findOne({
       title: { $regex: `^${escapeRegex(title.trim())}$`, $options: 'i' },
+      user: req.user.id,
       ...(currentId ? { _id: { $ne: currentId } } : {})
     });
 

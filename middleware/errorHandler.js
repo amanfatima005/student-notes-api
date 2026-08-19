@@ -9,18 +9,21 @@ function errorHandler(err, req, res, next) {
 
   // Invalid MongoDB ObjectId (e.g. GET /api/notes/abc123)
   if (err.name === 'CastError' && err.kind === 'ObjectId') {
-    return res.status(400).json({ error: 'Invalid note ID.' });
+    return res.status(400).json({ error: 'Invalid ID.' });
   }
 
-  // Mongoose schema validation errors (the safety-net layer below validateNote.js)
+  // Mongoose schema validation errors (the safety-net layer below validateNote.js / User schema)
   if (err.name === 'ValidationError') {
     const messages = Object.values(err.errors).map(e => e.message);
     return res.status(400).json({ error: messages.join(' ') });
   }
 
-  // Duplicate key error (title has a unique index at the schema level too)
+  // Duplicate key error -- works for both the Note title index and the
+  // User email index, since it reads whichever field actually collided.
   if (err.code === 11000) {
-    return res.status(400).json({ error: 'Title already exists' });
+    const field = Object.keys(err.keyValue || {}).find(key => key !== 'user') || 'Field';
+    const label = field.charAt(0).toUpperCase() + field.slice(1);
+    return res.status(400).json({ error: `${label} already exists.` });
   }
 
   // Anything else -> generic 500

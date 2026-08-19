@@ -1,10 +1,13 @@
 // controllers/notesController.js
 //
-// Same route handler shapes as Version 2, but every read/write now goes
-// through Mongoose to MongoDB instead of fileHandler.readNotes()/writeNotes().
-// All errors are passed to next(err) so the centralized errorHandler
-// middleware can turn them into consistent JSON responses (invalid ObjectId,
-// Mongoose validation errors, duplicate key errors, etc).
+// Week 5: every function here is scoped to the logged-in user
+// (authMiddleware has already set req.user.id before any of this runs).
+//
+// For getNoteById / updateNote / deleteNote, the query filters by BOTH
+// _id AND user in a single step. If the note exists but belongs to someone
+// else, that query simply finds nothing -- so it returns the same 404 as a
+// note that doesn't exist at all. This is intentional: a user shouldn't be
+// able to tell "not yours" apart from "doesn't exist" just by poking at IDs.
 
 const Note = require('../models/Note');
 const { escapeRegex } = require('../utils/helpers');
@@ -14,7 +17,7 @@ const { escapeRegex } = require('../utils/helpers');
  */
 async function getAllNotes(req, res, next) {
   try {
-    const notes = await Note.find().sort({ createdAt: -1 });
+    const notes = await Note.find({ user: req.user.id }).sort({ createdAt: -1 });
     res.status(200).json(notes);
   } catch (err) {
     next(err);
@@ -26,7 +29,7 @@ async function getAllNotes(req, res, next) {
  */
 async function getNoteById(req, res, next) {
   try {
-    const note = await Note.findById(req.params.id);
+    const note = await Note.findOne({ _id: req.params.id, user: req.user.id });
     if (!note) {
       return res.status(404).json({ error: 'Note not found.' });
     }
@@ -48,12 +51,13 @@ async function addNote(req, res, next) {
       title: title.trim(),
       subject: subject.trim(),
       description: description.trim(),
-      tags: Array.isArray(tags) ? tags : []
+      tags: Array.isArray(tags) ? tags : [],
+      user: req.user.id
     });
 
     res.status(201).json(note);
   } catch (err) {
-    next(err); // Mongoose validation errors / duplicate key errors land here
+    next(err);
   }
 }
 
@@ -72,10 +76,11 @@ async function updateNote(req, res, next) {
     };
     if (Array.isArray(tags)) updates.tags = tags;
 
-    const note = await Note.findByIdAndUpdate(req.params.id, updates, {
-      new: true,           // return the updated document, not the old one
-      runValidators: true  // re-run schema validation on update
-    });
+    const note = await Note.findOneAndUpdate(
+      { _id: req.params.id, user: req.user.id },
+      updates,
+      { new: true, runValidators: true }
+    );
 
     if (!note) {
       return res.status(404).json({ error: 'Note not found.' });
@@ -92,7 +97,7 @@ async function updateNote(req, res, next) {
  */
 async function deleteNote(req, res, next) {
   try {
-    const note = await Note.findByIdAndDelete(req.params.id);
+    const note = await Note.findOneAndDelete({ _id: req.params.id, user: req.user.id });
 
     if (!note) {
       return res.status(404).json({ error: 'Note not found.' });
@@ -108,7 +113,6 @@ async function deleteNote(req, res, next) {
  * GET /api/notes/search?title=node
  * GET /api/notes/search?subject=backend
  * GET /api/notes/search?tag=react
- * (all performed as a real MongoDB query, not in-memory filtering)
  */
 async function searchNotes(req, res, next) {
   try {
@@ -118,7 +122,7 @@ async function searchNotes(req, res, next) {
       return res.status(400).json({ error: 'Provide a title, subject, or tag query parameter to search.' });
     }
 
-    const filter = {};
+    const filter = { user: req.user.id };
     if (title) filter.title = { $regex: escapeRegex(title), $options: 'i' };
     if (subject) filter.subject = { $regex: escapeRegex(subject), $options: 'i' };
     if (tag) filter.tags = { $regex: escapeRegex(tag), $options: 'i' };
@@ -135,7 +139,8 @@ async function searchNotes(req, res, next) {
  */
 async function getStats(req, res, next) {
   try {
-    const totalNotes = await Note.countDocuments();
+    const userFilter = { user: req.user.id };
+    const totalNotes = await Note.countDocuments(userFilter);
 
     if (totalNotes === 0) {
       return res.status(200).json({
@@ -146,11 +151,12 @@ async function getStats(req, res, next) {
       });
     }
 
-    const subjectList = await Note.distinct('subject');
-    const latest = await Note.findOne().sort({ createdAt: -1 });
+    const subjectList = await Note.distinct('subject', userFilter);
+    const latest = await Note.findOne(userFilter).sort({ createdAt: -1 });
 
     // Bonus: most-used tag calculated with a MongoDB aggregation pipeline
     const topTagResult = await Note.aggregate([
+      { $match: { user: latest.user } },
       { $unwind: '$tags' },
       { $group: { _id: '$tags', count: { $sum: 1 } } },
       { $sort: { count: -1 } },

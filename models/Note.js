@@ -8,6 +8,10 @@
 //      the database (fast fail, custom business rules like duplicate titles).
 //   2. This schema -- Mongoose/MongoDB's own validation, which runs no
 //      matter how the data got here (API, script, admin tool, etc.).
+//
+// Week 5: every note now belongs to a user. Title uniqueness is scoped per
+// user (via the compound index below) instead of being globally unique --
+// two different students can both have a note called "React Hooks".
 
 const mongoose = require('mongoose');
 
@@ -16,8 +20,7 @@ const noteSchema = new mongoose.Schema(
     title: {
       type: String,
       required: [true, 'Title is required.'],
-      trim: true,
-      unique: true
+      trim: true
     },
     subject: {
       type: String,
@@ -33,6 +36,11 @@ const noteSchema = new mongoose.Schema(
     tags: {
       type: [String],
       default: []
+    },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
     }
   },
   {
@@ -47,5 +55,8 @@ const noteSchema = new mongoose.Schema(
     toObject: { virtuals: true }
   }
 );
+
+// A title only needs to be unique within one user's own notes.
+noteSchema.index({ user: 1, title: 1 }, { unique: true });
 
 module.exports = mongoose.model('Note', noteSchema);
