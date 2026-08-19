@@ -10,10 +10,16 @@ const express = require('express');
 const connectDB = require('./config/db');
 const logger = require('./middleware/logger');
 const errorHandler = require('./middleware/errorHandler');
+const authRoutes = require('./routes/authRoutes');
 const notesRoutes = require('./routes/notesRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+if (!process.env.JWT_SECRET) {
+  console.error('❌ JWT_SECRET is not set. Add it to your .env file.');
+  process.exit(1);
+}
 
 // ---- Global middleware ----
 app.use(express.json());   // parse JSON request bodies
@@ -28,7 +34,10 @@ app.get('/', (req, res) => {
 // Served under /app so it doesn't clash with the required JSON home route.
 app.use('/app', express.static(path.join(__dirname, 'public')));
 
-// ---- Notes routes ----
+// ---- Auth routes (public: register/login; /me requires a token) ----
+app.use('/api/auth', authRoutes);
+
+// ---- Notes routes (all require a valid JWT) ----
 app.use('/api/notes', notesRoutes);
 
 // ---- 404 handler (unknown routes) ----

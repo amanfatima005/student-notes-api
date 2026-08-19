@@ -1,16 +1,146 @@
 // public/script.js
-// Frontend for Version 1's UI, wired up to the Version 2 Express REST API.
-// Key differences from the old CLI-backed frontend:
-//   - Notes are identified by a numeric `id`, not by title.
-//   - Search uses ?title=, ?subject=, or ?tag= (one field at a time).
-//   - Stats response shape is different: { totalNotes, subjects, latestNote, mostUsedTag }.
-//   - Tags must be sent to the API as an array, not a comma string.
+// Frontend for the JWT-secured Student Notes API.
+//
+// The token is stored in localStorage (this is a real standalone app served
+// by our own Express server, not a sandboxed embed, so that's fine here).
+// Every notes API call attaches it as "Authorization: Bearer <token>".
 
 const API = '/api';
+const TOKEN_KEY = 'notes_app_token';
 
-/* ---------------- Tab switching ---------------- */
-const tabButtons = document.querySelectorAll('.tab-btn');
-const tabPanels = document.querySelectorAll('.tab-panel');
+let currentUser = null;
+
+/* ================= Auth screen <-> main app switching ================= */
+const authScreen = document.getElementById('authScreen');
+const mainApp = document.getElementById('mainApp');
+
+function showAuthScreen() {
+  authScreen.classList.remove('hidden');
+  mainApp.classList.add('hidden');
+}
+
+function showMainApp(user) {
+  currentUser = user;
+  document.getElementById('currentUserName').textContent = user.name;
+  authScreen.classList.add('hidden');
+  mainApp.classList.remove('hidden');
+  loadAllNotes();
+}
+
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function setToken(token) {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+function clearToken() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+/* ================= Generic API helper (adds the auth header) ================= */
+async function api(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${API}${path}`, { headers, ...options });
+  const data = await res.json().catch(() => ({}));
+
+  if (res.status === 401) {
+    // Token missing/invalid/expired -> bounce back to the login screen
+    clearToken();
+    showAuthScreen();
+  }
+
+  if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+  return data;
+}
+
+/* ================= On page load: try to resume a session ================= */
+(async function init() {
+  const token = getToken();
+  if (!token) {
+    showAuthScreen();
+    return;
+  }
+  try {
+    const user = await api('/auth/me');
+    showMainApp(user);
+  } catch (err) {
+    clearToken();
+    showAuthScreen();
+  }
+})();
+
+/* ================= Auth screen: Login / Register tab switching ================= */
+document.querySelectorAll('[data-authtab]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-authtab]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#authScreen .tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.authtab).classList.add('active');
+  });
+});
+
+/* ================= Login ================= */
+const loginForm = document.getElementById('loginForm');
+const loginMessage = document.getElementById('loginMessage');
+
+loginForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+
+  try {
+    const result = await api('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password })
+    });
+    setToken(result.token);
+    showMessage(loginMessage, '', '');
+    loginForm.reset();
+    showMainApp(result.user);
+  } catch (err) {
+    showMessage(loginMessage, `❌ ${err.message}`, 'error');
+  }
+});
+
+/* ================= Register ================= */
+const registerForm = document.getElementById('registerForm');
+const registerMessage = document.getElementById('registerMessage');
+
+registerForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = document.getElementById('registerName').value;
+  const email = document.getElementById('registerEmail').value;
+  const password = document.getElementById('registerPassword').value;
+
+  try {
+    const result = await api('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, password })
+    });
+    setToken(result.token);
+    showMessage(registerMessage, '', '');
+    registerForm.reset();
+    showMainApp(result.user);
+  } catch (err) {
+    showMessage(registerMessage, `❌ ${err.message}`, 'error');
+  }
+});
+
+/* ================= Logout ================= */
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  clearToken();
+  currentUser = null;
+  showAuthScreen();
+});
+
+/* ================= Main app: tab switching ================= */
+const tabButtons = document.querySelectorAll('#mainApp .tab-btn[data-tab]');
+const tabPanels = document.querySelectorAll('#mainApp .tab-panel');
 
 tabButtons.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -24,7 +154,7 @@ tabButtons.forEach(btn => {
   });
 });
 
-/* ---------------- Helpers ---------------- */
+/* ================= Helpers ================= */
 function showMessage(el, text, type) {
   el.textContent = text;
   el.className = `message ${type}`;
@@ -52,7 +182,7 @@ function noteCardHtml(note) {
   const tags = (note.tags || []).map(t => `<span>${escapeHtml(t)}</span>`).join('');
   return `
     <div class="note-card">
-      <div class="note-id">ID: ${note.id}</div>
+      <div class="note-id">ID: ${note.id || note._id}</div>
       <h3>${escapeHtml(note.title)}</h3>
       <div class="meta">${escapeHtml(note.subject)} • Created ${formatDate(note.createdAt)}</div>
       ${note.description ? `<p>${escapeHtml(note.description)}</p>` : ''}
@@ -69,17 +199,7 @@ function renderNoteList(container, notes, emptyText) {
   container.innerHTML = notes.map(noteCardHtml).join('');
 }
 
-async function api(path, options = {}) {
-  const res = await fetch(`${API}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Something went wrong.');
-  return data;
-}
-
-/* ---------------- Add Note ---------------- */
+/* ================= Add Note ================= */
 const addForm = document.getElementById('addForm');
 const addMessage = document.getElementById('addMessage');
 
@@ -101,11 +221,12 @@ addForm.addEventListener('submit', async e => {
   }
 });
 
-/* ---------------- View Notes ---------------- */
+/* ================= View Notes ================= */
 const viewList = document.getElementById('viewList');
 document.getElementById('refreshViewBtn').addEventListener('click', loadAllNotes);
 
 async function loadAllNotes() {
+  if (!getToken()) return;
   viewList.innerHTML = '<p class="empty-state">Loading...</p>';
   try {
     const notes = await api('/notes');
@@ -115,7 +236,7 @@ async function loadAllNotes() {
   }
 }
 
-/* ---------------- Search ---------------- */
+/* ================= Search ================= */
 const searchForm = document.getElementById('searchForm');
 const searchList = document.getElementById('searchList');
 
@@ -138,7 +259,7 @@ searchForm.addEventListener('submit', async e => {
   }
 });
 
-/* ---------------- Update ---------------- */
+/* ================= Update ================= */
 const findForm = document.getElementById('findForm');
 const updateForm = document.getElementById('updateForm');
 const updateMessage = document.getElementById('updateMessage');
@@ -185,7 +306,7 @@ updateForm.addEventListener('submit', async e => {
   }
 });
 
-/* ---------------- Delete (with confirm dialog) ---------------- */
+/* ================= Delete (with confirm dialog) ================= */
 const deleteForm = document.getElementById('deleteForm');
 const deleteMessage = document.getElementById('deleteMessage');
 const overlay = document.getElementById('confirmOverlay');
@@ -222,11 +343,12 @@ confirmYes.addEventListener('click', async () => {
   pendingDeleteId = null;
 });
 
-/* ---------------- Statistics ---------------- */
+/* ================= Statistics ================= */
 const statsBox = document.getElementById('statsBox');
 document.getElementById('refreshStatsBtn').addEventListener('click', loadStats);
 
 async function loadStats() {
+  if (!getToken()) return;
   statsBox.innerHTML = '<p class="empty-state">Loading...</p>';
   try {
     const stats = await api('/notes/stats');
@@ -245,6 +367,3 @@ async function loadStats() {
     statsBox.innerHTML = `<p class="empty-state">❌ ${err.message}</p>`;
   }
 }
-
-/* Pre-load the view list so the tab is instant on first click */
-loadAllNotes();
